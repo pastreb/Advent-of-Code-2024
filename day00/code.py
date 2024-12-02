@@ -20,6 +20,7 @@ class Dummy:
 
 def compute_part_1(input_file_name="input.txt"):
     input = read_input(input_file_name)
+    numbers = [[int(x) for x in re.findall(r"\d+", line)] for line in input]
     return 0
 
 
