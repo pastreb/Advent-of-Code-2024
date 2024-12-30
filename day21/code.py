@@ -215,6 +215,11 @@ def get_optimal_sequence(s, t):
 def get_shortest_path_sequences(target_button, current_pos, keypad):
         queue = [current_pos]
         sequences = {current_pos : ['']}
+        # We are in fact only interested in the "best" sequence, but finding that is a bit difficult
+        # since there are not only rules to follow (e.g. never go over the empty space) but also
+        # orders of operations that are better than others (e.g. '<<^' better than '<^<' and more complicated).
+        # Since there are not that many possibilities for entering the number on the Numeric Keybad, we just
+        # look at all of them.
         while len(queue) > 0:
             (i, j) = queue.pop(0)
             for ii, jj, dir in [(i-1, j, '^'), (i, j+1, '>'), (i+1, j, 'v'), (i, j-1, '<')]:
@@ -251,10 +256,12 @@ def find_pos(button_value, keypad):
                     return (i, j)
         return (-1, -1)
 
+# Basically do one step of applying a Directional Keypad without actually generating the
+# new sequence and instead updating the count of all possible subsequences. 
 def evolve_sequence_counts(sequence_counts):
     new_sequence_counts = {}
     for key in sequence_counts.keys():
-        sequence = "A" + key
+        sequence = "A" + key # since any sequence for pressing a button starts and ends with A, we can look at them in isolation
         for k in range(len(sequence)-1):
             directional_sequence = get_optimal_sequence(sequence[k], sequence[k+1])
             new_sequence_counts[directional_sequence] = new_sequence_counts.get(directional_sequence, 0) + sequence_counts[key]
@@ -280,7 +287,7 @@ def compute(codes, n_directional_keypads):
         start_sequences = get_sequences_from_numeric_keypad(code, numeric_keypad) # check all possibilities
         button_counts = []
         for start_sequence in start_sequences:
-            # Only maintain counts of (sub-)sequences; not actual sequence itself
+            # Only maintain counts of independent (sub-)sequences; not the actual sequence itself (that grows exponentially)
             sequence_counts = get_sequence_counts(n_directional_keypads, start_sequence)
             button_counts.append(n_button_presses_from_sequence_counts(sequence_counts))
         # print(f"{min(button_counts)} * {int(code.replace('A', ''))}")
