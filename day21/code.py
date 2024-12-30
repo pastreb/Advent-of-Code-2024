@@ -7,78 +7,6 @@ def read_input(input_file_name):
         lines = f.readlines()
         return lines
 
-class Keypad:
-
-    def __init__(self, buttons):
-        self.buttons = buttons
-    
-    def find_pos_on_keypad(self, button_value):
-        for i in range(len(self.buttons)):
-            for j in range(len(self.buttons[i])):
-                if self.buttons[i][j] == button_value:
-                    return (i, j)
-        return (-1, -1)
-
-    # Tries to get a score for a series of buttons based on what they cause on next level.
-    # Note entirely working.
-    def count_button_switch_score(self, sequence):
-        score = 0 # the higher the worse
-        for i in range(1, len(sequence)):
-            # Punish key changes:
-            pos_1 = self.find_pos_on_keypad(sequence[i])
-            pos_0 = self.find_pos_on_keypad(sequence[i-1])
-            score += sequence[i] != sequence[i-1]
-            # score += abs(pos_0[0] - pos_1[0]) + abs(pos_0[1] - pos_1[1])
-            # Punish bad orders:
-            score += (sequence[i-1:i+1] == "<^") + (sequence[i-1:i+1] == "<v") + (sequence[i-1:i+1] == "v>") + (sequence[i-1:i+1] == "<A")
-            # score += (sequence[i] == '<')
-            # <^ => v<<A>^A  vs.  ^< => <Av<A
-            # <v => v<<A>A   vs.  v< => v<A<A
-            # >^ => vA<^A    vs.  ^> => <Av>A
-            # >v => vA<A     vs.  v> => v<A>A
-            # <A => v<<A>>^A vs.  A< => Av<<A
-            #     +---+---+
-            #     | ^ | A |
-            # +---+---+---+
-            # | < | v | > |
-            # +---+---+---+
-        return score
-    
-    # Brute Force Approach: Returns all sequences of the same length that result in the button being pressed
-    @functools.cache
-    def get_sequences_for_pressing_single_button(self, target_button, current_pos):
-        queue = [current_pos]
-        sequences = {current_pos : ['']}
-        while len(queue) > 0:
-            (i, j) = queue.pop(0)
-            for ii, jj, dir in [(i-1, j, '^'), (i, j+1, '>'), (i+1, j, 'v'), (i, j-1, '<')]:
-                if ii >= 0 and ii < len(self.buttons) and jj >= 0 and jj < len(self.buttons[ii]) and self.buttons[ii][jj] != '':
-                    if (ii, jj) not in sequences.keys():
-                        queue.append((ii, jj))
-                        sequences[(ii, jj)] = []
-                        for seq in sequences[(i, j)]:
-                            if (seq + dir) not in sequences[(ii, jj)]: 
-                                sequences[(ii, jj)].append(seq + dir)
-                    elif len(sequences[(ii,jj)][0]) >= len(sequences[(i,j)][0]) + 1:
-                        queue.append((ii, jj))
-                        for seq in sequences[(i, j)]:
-                            if (seq + dir) not in sequences[(ii, jj)]: 
-                                sequences[(ii, jj)].append(seq + dir)
-        return [seq + 'A' for seq in sequences[self.find_pos_on_keypad(target_button)]]
-
-    # Brute Force Approach: Returns all possible sequences of the same length
-    def get_sequences_for_buttons(self, button_values):
-        out = [""]
-        pos = self.find_pos_on_keypad('A')
-        for button_value in button_values:
-            new_out = []
-            for base in out:
-                for seq in self.get_sequences_for_pressing_single_button(button_value, pos):
-                    new_out.append(base + seq)
-            out = new_out
-            pos = self.find_pos_on_keypad(button_value)
-        return out
-
 # --- Day 21: Keypad Conundrum ---
 
 # As you teleport onto Santa's Reindeer-class starship, The Historians begin 
@@ -227,25 +155,142 @@ class Keypad:
 # cause the robot in front of the door to type each code. What is the sum of 
 # the complexities of the five codes on your list?
 
+# Returns the optimal sequence from getting from s to t on the directional keypad
+def get_optimal_sequence(s, t):
+
+        if s == t:
+            return "A"
+        
+        match s + t:
+            
+            case "A^":
+                return "<A"
+            case "A<":
+                return "v<<A"
+            case "Av":
+                return "<vA"
+            case "A>":
+                return "vA"
+            
+            case "^A":
+                return ">A"
+            case "^v":
+                exit("Makes no sense")
+            case "^<":
+                return "v<A" 
+            case "^>":
+                return "v>A"
+            
+            case "<A":
+                return ">>^A"
+            case "<^":
+                return ">^A"
+            case "<v":
+                return ">A"
+            case "<>":
+                exit("Makes no sense")
+
+            case "vA":
+                return "^>A"
+            case "v^":
+                exit("Makes no sense")
+            case "v<":
+                return "<A"
+            case "v>":
+                return ">A"
+            
+            case ">A":
+                return "^A"
+            case ">^":
+                return "<^A"
+            case "><":
+                exit("Makes no sense")
+            case ">v":
+                return "<A"
+
+        exit("Unexpected transition")
+
+# Get all possible sequences that form a shortest path from current_pos to the pos with target_button
+# Only use this for the Numeric Keypad
+def get_shortest_path_sequences(target_button, current_pos, keypad):
+        queue = [current_pos]
+        sequences = {current_pos : ['']}
+        while len(queue) > 0:
+            (i, j) = queue.pop(0)
+            for ii, jj, dir in [(i-1, j, '^'), (i, j+1, '>'), (i+1, j, 'v'), (i, j-1, '<')]:
+                if ii >= 0 and ii < len(keypad) and jj >= 0 and jj < len(keypad[ii]) and keypad[ii][jj] != '':
+                    if (ii, jj) not in sequences.keys():
+                        queue.append((ii, jj))
+                        sequences[(ii, jj)] = []
+                        for seq in sequences[(i, j)]:
+                            if (seq + dir) not in sequences[(ii, jj)]: 
+                                sequences[(ii, jj)].append(seq + dir)
+                    elif len(sequences[(ii,jj)][0]) >= len(sequences[(i,j)][0]) + 1:
+                        queue.append((ii, jj))
+                        for seq in sequences[(i, j)]:
+                            if (seq + dir) not in sequences[(ii, jj)]: 
+                                sequences[(ii, jj)].append(seq + dir)
+        return [seq + 'A' for seq in sequences[find_pos(target_button, keypad)]]
+
+def get_sequences_from_numeric_keypad(code, numeric_keypad):
+    pos = find_pos("A", numeric_keypad)
+    sequences = [""]
+    for x in code:
+        new_sequences = []
+        for base in sequences:
+            for seq in get_shortest_path_sequences(x, pos, numeric_keypad):
+                new_sequences.append(base + seq)
+        sequences = new_sequences
+        pos = find_pos(x, numeric_keypad)
+    return sequences
+
+def find_pos(button_value, keypad):
+        for i in range(len(keypad)):
+            for j in range(len(keypad[i])):
+                if keypad[i][j] == button_value:
+                    return (i, j)
+        return (-1, -1)
+
+def evolve_sequence_counts(sequence_counts):
+    new_sequence_counts = {}
+    for key in sequence_counts.keys():
+        sequence = "A" + key
+        for k in range(len(sequence)-1):
+            directional_sequence = get_optimal_sequence(sequence[k], sequence[k+1])
+            new_sequence_counts[directional_sequence] = new_sequence_counts.get(directional_sequence, 0) + sequence_counts[key]
+    return new_sequence_counts
+
+def get_sequence_counts(n_evolutions, start_sequence):
+    sequence_counts = {}
+    sequence = "A" + start_sequence
+    for k in range(len(sequence)-1):
+        directional_sequence = get_optimal_sequence(sequence[k], sequence[k+1])
+        sequence_counts[directional_sequence] = sequence_counts.get(directional_sequence, 0) + 1
+    for k in range(n_evolutions-1):
+        sequence_counts = evolve_sequence_counts(sequence_counts)
+    return sequence_counts
+
+def n_button_presses_from_sequence_counts(sequence_counts):
+    return sum([sequence_counts[key] * len(key) for key in sequence_counts.keys()])
+
+def compute(codes, n_directional_keypads):
+    numeric_keypad = [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3'], ['', '0', 'A']]
+    sum_of_complexities = 0
+    for code in codes:
+        start_sequences = get_sequences_from_numeric_keypad(code, numeric_keypad) # check all possibilities
+        button_counts = []
+        for start_sequence in start_sequences:
+            # Only maintain counts of (sub-)sequences; not actual sequence itself
+            sequence_counts = get_sequence_counts(n_directional_keypads, start_sequence)
+            button_counts.append(n_button_presses_from_sequence_counts(sequence_counts))
+        # print(f"{min(button_counts)} * {int(code.replace('A', ''))}")
+        sum_of_complexities += min(button_counts) * int(code.replace('A', ''))
+    return sum_of_complexities
+
 def compute_part_1(input_file_name="input.txt"):
     input = read_input(input_file_name)
     codes = [line.replace('\n', '') for line in input]
-    numeric_keypad = Keypad([['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3'], ['', '0', 'A']])
-    directional_keypad = Keypad([['', '^', 'A'], ['<', 'v', '>']])
-    sum_of_complexities = 0
-    for code in codes:
-        print(code)
-        sequences = numeric_keypad.get_sequences_for_buttons(code)
-        for i in range(2):
-            next_sequences = []
-            for k in range(len(sequences)):
-                print(f"Treating {sequences[k]} on l{i+1} ({k}/{len(sequences)})")
-                next_sequences += directional_keypad.get_sequences_for_buttons(sequences[k])
-                min_length = min([len(seq) for seq in next_sequences])
-            sequences = [seq for seq in next_sequences if len(seq) == min_length]
-        print(f"{min([len(seq) for seq in sequences])}*{int(code.replace('A', ''))}")
-        sum_of_complexities += min([len(seq) for seq in sequences])*int(code.replace('A', ''))
-    return sum_of_complexities
+    return compute(codes, 2)
 
 # 136780
 # That's the right answer! You are one gold star closer to finding the Chief 
@@ -284,25 +329,11 @@ def compute_part_1(input_file_name="input.txt"):
 def compute_part_2(input_file_name="input.txt"):
     input = read_input(input_file_name)
     codes = [line.replace('\n', '') for line in input]
-    numeric_keypad = Keypad([['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3'], ['', '0', 'A']])
-    directional_keypad = Keypad([['', '^', 'A'], ['<', 'v', '>']])
-    sum_of_complexities = 0
-    return 0
-    # Not feasible
-    for code in codes:
-        print(code)
-        sequences = numeric_keypad.get_sequences_for_buttons(code)
-        for i in range(26):
-            next_sequences = []
-            for k in range(len(sequences)):
-                print(f"Treating {sequences[k]} on l{i+1} ({k}/{len(sequences)})")
-                next_sequences += directional_keypad.get_sequences_for_buttons(sequences[k])
-                min_length = min([len(seq) for seq in next_sequences])
-            sequences = [seq for seq in next_sequences if len(seq) == min_length]
-        print(f"{min([len(seq) for seq in sequences])}*{int(code.replace('A', ''))}")
-        sum_of_complexities += min([len(seq) for seq in sequences])*int(code.replace('A', ''))
-    return sum_of_complexities
+    return compute(codes, 25)
 
+# 167538833832712
+# That's the right answer! You are one gold star closer to finding the Chief 
+# Historian.
 
 if __name__ == "__main__":
     print(f"PART 1: {compute_part_1()}")
