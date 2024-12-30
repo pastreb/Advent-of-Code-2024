@@ -8,15 +8,6 @@ def read_input(input_file_name):
         lines = f.readlines()
         return lines
 
-
-class Dummy:
-    def __init__(self):
-        self.dummy = 0
-
-    def setup(self, input):
-        for set in re.findall(r"[^;]+", input):
-            pass
-
 # --- Day 20: Race Condition ---
 
 # The Historians are quite pixelated again. This time, a massive, black 
